@@ -84,3 +84,84 @@ def search(grid, start_pos, goal_pos, algo, heuristic_type):
                         heapq.heappush(pq, (neighbor.f, neighbor))
                         frontier_set.add(neighbor)
     return [], visited, frontier_set, 0
+
+class PathfindingVisualizer:
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.font = pygame.font.SysFont("Courier", 16, bold=True)
+        self.grid = [[Node(r, c) for c in range(COLS)] for r in range(ROWS)]
+        self.start, self.goal = (17, 10), (10, 10)
+        self.agent_pos = self.start
+        self.path, self.visited_nodes, self.frontier_nodes = [], set(), set()
+        self.algo, self.heuristic, self.dynamic_mode = "A*", "Manhattan", False
+        self.exec_time = 0
+        self.generate_random_map(DENSITY)
+
+    def generate_random_map(self, density):
+        for r in range(ROWS):
+            for c in range(COLS):
+                self.grid[r][c].is_wall = random.random() < density
+        self.grid[self.start[0]][self.start[1]].is_wall = False
+        self.grid[self.goal[0]][self.goal[1]].is_wall = False
+
+    def draw(self):
+        self.screen.fill((30, 30, 30))
+        for row in self.grid:
+            for node in row:
+                color = (50, 50, 50) # Default grid
+                if node.is_wall: color = BLACK
+                elif (node.row, node.col) == self.start: color = ORANGE
+                elif (node.row, node.col) == self.goal: color = RED
+                elif (node.row, node.col) == self.agent_pos: color = PURPLE
+                elif (node.row, node.col) in self.path: color = GREEN
+                elif node in self.visited_nodes: color = BLUE
+                elif node in self.frontier_nodes: color = YELLOW
+                pygame.draw.rect(self.screen, color, (node.x, node.y, GRID_SIZE-1, GRID_SIZE-1))
+
+        # Dashboard Logic
+        metrics = [
+            f"ALGO: {self.algo} | HEURISTIC: {self.heuristic}",
+            f"DYNAMIC MODE: {'ON' if self.dynamic_mode else 'OFF'}",
+            f"NODES VISITED: {len(self.visited_nodes)}",
+            f"PATH COST: {len(self.path)}",
+            f"EXEC TIME: {self.exec_time:.2f} ms"
+        ]
+        for i, text in enumerate(metrics):
+            surface = self.font.render(text, True, WHITE)
+            self.screen.blit(surface, (10, ROWS * GRID_SIZE + 10 + (i * 20)))
+        pygame.display.flip()
+
+    def run(self):
+        run = True
+        while run:
+            self.draw()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: run = False
+                if pygame.mouse.get_pressed()[0]: # Manual Wall Placement
+                    mx, my = pygame.mouse.get_pos()
+                    r, c = my // GRID_SIZE, mx // GRID_SIZE
+                    if r < ROWS and c < COLS: self.grid[r][c].is_wall = True
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        self.path, self.visited_nodes, self.frontier_nodes, self.exec_time = \
+                            search(self.grid, self.agent_pos, self.goal, self.algo, self.heuristic)
+                    if event.key == pygame.K_a: self.algo = "GBFS" if self.algo == "A*" else "A*"
+                    if event.key == pygame.K_h: self.heuristic = "Euclidean" if self.heuristic == "Manhattan" else "Manhattan"
+                    if event.key == pygame.K_d: self.dynamic_mode = not self.dynamic_mode
+                    if event.key == pygame.K_r: self.generate_random_map(DENSITY)
+
+            if self.dynamic_mode and self.path:
+                self.agent_pos = self.path.pop(0)
+                if random.random() < 0.1: # 10% spawn chance per step
+                    r, c = random.randint(0, ROWS-1), random.randint(0, COLS-1)
+                    if (r, c) not in [self.agent_pos, self.goal]:
+                        self.grid[r][c].is_wall = True
+                        if (r, c) in self.path: # RE-PLANNING
+                            self.path, self.visited_nodes, self.frontier_nodes, self.exec_time = \
+                                search(self.grid, self.agent_pos, self.goal, self.algo, self.heuristic)
+                time.sleep(0.05)
+        pygame.quit()
+if __name__ == "__main__":
+    visualizer = PathfindingVisualizer()
+    visualizer.run()
